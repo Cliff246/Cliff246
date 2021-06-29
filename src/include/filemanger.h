@@ -9,11 +9,10 @@
 
 #include "include/tistring.h"
 
+//you could adjust this but dont. dealing with character array is just easier.
 #define CHUNKSIZE 8
 
-
 typedef struct ti_file ti_file_t;
-
 
 struct ti_file
 {
@@ -39,23 +38,26 @@ ti_file_t* ti_open_file(char* file_name,char* file_mode)
 
         file_object->ti_var_file = temp; 
         
-        void* fmode_cpy = memcpy(file_object->ti_mode,file_mode,3);
-        void* fname_cpy = memcpy(file_object->ti_file_name,file_name,size_name);
+        void* mode_cpy = memcpy(file_object->ti_mode,file_mode,3);
+        void* name_cpy = memcpy(file_object->ti_file_name,file_name,size_name);
         
-        if(fmode_cpy == NULL || fname_cpy == NULL)
+        if(mode_cpy == NULL || name_cpy == NULL)
             os_ThrowError(-1);
         return file_object;
     }
-    else
-        os_ThrowError(-1);
+    os_ThrowError(-1);
 }
 
 char* pull_file(ti_file_t* file)
 {
+    //pull data from file
     if(file != NULL)
     {   
         if(file->ti_var_file != 0)
         {
+            /*goto is dangerous but quote this if i am wrong.
+             every thing that could is in the scope of the goto is on the stack so it should be fine? 
+             even if it did cause a memory leak then who cares its only a few bytes :)*/
             file_reset:
             if(file->ti_mode == "r" || file->ti_mode == "r+" || file->ti_mode == "w+" || file->ti_mode == "a+")
             {
@@ -88,6 +90,7 @@ char* pull_file(ti_file_t* file)
                     else
                     {
                         file->ti_var_file = reset;
+                        //super scary
                         goto file_reset;
                     }
                 }
@@ -98,8 +101,46 @@ char* pull_file(ti_file_t* file)
     return NULL;
 }
 
+void create_file(ti_file_t **rfile,char* name,char* data)
+{
+    /*create file
+    //rfile is if you want to MAKE and GET the file
+    leave rfile NULL if you only want to create*/
+    if(name == NULL || data == NULL)
+        os_ThrowError(-1);
+    ti_var_t new_file = ti_Open(name,"w");
+    if(new_file != 0)
+    {
+        size_t isize = strlen(data);
+        size_t rsize = ti_Write(data,CHUNKSIZE,isize+1,new_file);
+        if(isize == rsize && rsize != 0)
+        {
+            if(rfile != NULL)
+            {
+                size_t name_size = strlen(name);
+                ti_file_t *temp = (ti_file_t*)realloc(*rfile,sizeof(ti_file_t) + name_size);
+                if(temp != NULL && *rfile != NULL) 
+                {
+                    *rfile = temp;
+                    void* name_cpy = memcpy((*rfile)->ti_file_name,name,name_size);
+                    void* mode_cpy = memcpy((*rfile)->ti_mode,"w",2);
+                    (*rfile)->ti_var_file = new_file;
+                    if(name_cpy == NULL || mode_cpy == NULL)
+                        os_ThrowError(-1);
+                    return;
+                }
+                free(temp);
+            }
+            else
+                return;
+        }
+    }
+    os_ThrowError(-1);
+}
+
 void close_file(ti_file_t* file)
 {
+    //close and free a file
     if(file != NULL)
     {
         ti_Close(file->ti_var_file);
@@ -109,8 +150,5 @@ void close_file(ti_file_t* file)
     else
         os_ThrowError(-1);
 }
-
-
-
 
 #endif
